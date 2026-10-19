@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>학급 학생 랜덤 추첨기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #1e3a2b; /* 진한 칠판 초록색 */
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.05) 0%, rgba(0, 0, 0, 0.25) 100%),
+                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.03) 2px, rgba(0, 0, 0, 0.03) 4px);
+        }
+
+        .chalkboard-border {
+            border: 12px solid #5c3a21; /* 나무 프레임 느낌 */
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5), inset 0 0 20px rgba(0,0,0,0.6);
+        }
+
+        .chalk-text {
+            font-family: 'Gowun Batang', serif;
+            text-shadow: 0 0 4px rgba(255, 255, 255, 0.6), 0 0 12px rgba(255, 255, 255, 0.3);
+        }
+
+        .chalk-btn {
+            background-color: transparent;
+            border: 3px solid #ffffff;
+            color: #ffffff;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 0 #ffffff;
+        }
+
+        .chalk-btn:hover {
+            background-color: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 0 #ffffff;
+        }
+
+        .chalk-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #ffffff;
+        }
+
+        .chalk-btn-secondary {
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            color: #ffffff;
+            transition: all 0.2s ease;
+        }
+
+        .chalk-btn-secondary:hover {
+            background-color: rgba(255, 255, 255, 0.25);
+            border-color: #ffffff;
+        }
+
+        /* 이름이 바뀔 때 부드러운 연출 */
+        .pop-anim {
+            animation: pop 0.1s ease-in-out;
+        }
+
+        @keyframes pop {
+            0% { transform: scale(0.95); opacity: 0.8; }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* 커스텀 스크롤바 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 select-none">
+
+    <!-- 메인 칠판 컨테이너 -->
+    <div class="w-full max-w-2xl bg-[#1b3326] chalkboard-border rounded-xl p-6 md:p-10 text-center text-white relative">
+        
+        <!-- 타이틀 & 설정 버튼 -->
+        <div class="flex justify-between items-center mb-6">
+            <div class="text-xs text-emerald-200/50 flex items-center gap-2">
+                <input type="checkbox" id="excludePicked" class="accent-emerald-400 w-4 h-4 cursor-pointer">
+                <label for="excludePicked" class="cursor-pointer">한 번 뽑힌 학생 제외</label>
+            </div>
+            <button onclick="toggleModal(true)" class="chalk-btn-secondary text-sm px-3 py-1.5 rounded-lg flex items-center gap-1">
+                ⚙️ 학생 명단 수정
+            </button>
+        </div>
+
+        <h1 class="text-xl md:text-2xl font-bold tracking-widest text-emerald-200/80 mb-6 chalk-text">
+            📋 오늘의 발표자 추첨
+        </h1>
+
+        <!-- 결과 출력 영역 -->
+        <div class="my-10 min-h-[160px] flex items-center justify-center">
+            <div id="nameDisplay" class="text-5xl md:text-7xl font-black chalk-text tracking-wider transition-all duration-100">
+                준비되셨나요?
+            </div>
+        </div>
+
+        <!-- 하단 조작 버튼 -->
+        <div class="mt-8 flex justify-center items-center gap-4">
+            <button id="pickBtn" onclick="pickRandomStudent()" class="chalk-btn font-bold text-2xl px-10 py-4 rounded-2xl flex items-center gap-3">
+                <span>🎲</span>
+                <span>뽑기!</span>
+            </button>
+        </div>
+
+        <!-- 학생 수 가이드 및 리셋 버튼 -->
+        <div class="mt-8 flex items-center justify-between text-xs text-emerald-200/60 border-t border-emerald-800/60 pt-4">
+            <div>
+                남은 인원: <span id="countNum" class="font-bold text-white">0</span>명 / 전체 <span id="totalNum" class="font-bold text-white">0</span>명
+            </div>
+            <button onclick="resetPickedList()" class="hover:underline text-emerald-300">
+                🔄 추첨 기록 초기화
+            </button>
+        </div>
+    </div>
+
+    <!-- 학생 목록 수정 모달 -->
+    <div id="studentModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 hidden z-50">
+        <div class="bg-[#1b3326] chalkboard-border w-full max-w-lg rounded-xl p-6 text-white relative flex flex-col max-h-[85vh]">
+            
+            <h2 class="text-xl font-bold mb-4 text-emerald-200 chalk-text flex justify-between items-center">
+                <span>✏️ 학생 명단 수정</span>
+                <button onclick="toggleModal(false)" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </h2>
+
+            <!-- 빠르게 등록하기 (쉼표/줄바꿈 구분) -->
+            <div class="mb-4">
+                <label class="block text-xs text-emerald-200/70 mb-1">이름 여러 개 한 번에 입력 (쉼표 또는 줄바꿈으로 구분)</label>
+                <textarea id="bulkInput" rows="3" placeholder="김철수, 이영희, 박민수..." class="w-full bg-[#13241b] border border-emerald-700/60 rounded-lg p-2.5 text-sm text-white focus:outline-none focus:border-emerald-400 resize-none"></textarea>
+                <button onclick="addBulkStudents()" class="w-full mt-2 chalk-btn-secondary text-sm py-2 rounded-lg font-bold">
+                    + 일괄 추가
+                </button>
+            </div>
+
+            <!-- 현재 목록 표시 및 삭제 -->
+            <div class="flex-1 overflow-y-auto my-2 pr-1">
+                <div class="text-xs text-emerald-200/70 mb-2 flex justify-between items-center">
+                    <span>현재 목록 (<span id="modalStudentCount">0</span>명)</span>
+                    <button onclick="clearAllStudents()" class="text-red-400 hover:underline">전체 삭제</button>
+                </div>
+                <div id="studentTagsContainer" class="flex flex-wrap gap-2 max-h-48 overflow-y-auto p-2 bg-[#13241b] rounded-lg border border-emerald-800">
+                    <!-- 학생 태그들이 여기에 동적으로 삽입됩니다 -->
+                </div>
+            </div>
+
+            <!-- 하단 닫기 버튼 -->
+            <div class="mt-4 pt-3 border-t border-emerald-800/80 flex justify-end">
+                <button onclick="toggleModal(false)" class="chalk-btn text-sm px-6 py-2 rounded-lg">
+                    완료
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 초기 기본 학생 목록
+        let defaultStudents = [
+            "김철수", "이영희", "박민수", "홍길동",
+            "정수진", "최동현", "강지민", "윤서준",
+            "한소율", "임현우", "오지훈", "신유나"
+        ];
+
+        // 로컬 스토리지에서 학생 목록 가져오기 또는 기본값 사용
+        let students = JSON.parse(localStorage.getItem('studentList')) || defaultStudents;
+        let pickedStudents = [];
+
+        const nameDisplay = document.getElementById('nameDisplay');
+        const pickBtn = document.getElementById('pickBtn');
+        const countNum = document.getElementById('countNum');
+        const totalNum = document.getElementById('totalNum');
+        const excludePickedCheckbox = document.getElementById('excludePicked');
+        const studentModal = document.getElementById('studentModal');
+        const studentTagsContainer = document.getElementById('studentTagsContainer');
+        const bulkInput = document.getElementById('bulkInput');
+        const modalStudentCount = document.getElementById('modalStudentCount');
+
+        let isPicking = false;
+
+        // 화면 UI 업데이트
+        function updateStats() {
+            const availableStudents = getAvailableStudents();
+            countNum.textContent = availableStudents.length;
+            totalNum.textContent = students.length;
+            modalStudentCount.textContent = students.length;
+            
+            // 로컬 스토리지 저장
+            localStorage.setItem('studentList', JSON.stringify(students));
+        }
+
+        // 추첨 가능한 학생 목록 가져오기
+        function getAvailableStudents() {
+            if (excludePickedCheckbox.checked) {
+                return students.filter(s => !pickedStudents.includes(s));
+            }
+            return students;
+        }
+
+        // 모달 열기/닫기
+        function toggleModal(show) {
+            if (show) {
+                renderStudentTags();
+                studentModal.classList.remove('hidden');
+            } else {
+                studentModal.classList.add('hidden');
+                updateStats();
+            }
+        }
+
+        // 모달 내 학생 태그 렌더링
+        function renderStudentTags() {
+            studentTagsContainer.innerHTML = '';
+            
+            if (students.length === 0) {
+                studentTagsContainer.innerHTML = '<span class="text-xs text-gray-400 p-2">등록된 학생이 없습니다. 위 상자에서 이름을 입력해 주세요.</span>';
+                return;
+            }
+
+            students.forEach((name, index) => {
+                const tag = document.createElement('span');
+                tag.className = 'inline-flex items-center gap-1 bg-[#1e3a2b] border border-emerald-600 px-2.5 py-1 rounded-full text-xs text-emerald-100';
+                tag.innerHTML = `
+                    <span>${name}</span>
+                    <button onclick="removeStudent(${index})" class="text-emerald-400 hover:text-red-400 font-bold ml-1">&times;</button>
+                `;
+                studentTagsContainer.appendChild(tag);
+            });
+
+            updateStats();
+        }
+
+        // 학생 개별 삭제
+        function removeStudent(index) {
+            students.splice(index, 1);
+            renderStudentTags();
+        }
+
+        // 전체 학생 삭제
+        function clearAllStudents() {
+            if (confirm('모든 학생 목록을 삭제하시겠습니까?')) {
+                students = [];
+                pickedStudents = [];
+                renderStudentTags();
+            }
+        }
+
+        // 일괄 추가 (쉼표, 줄바꿈, 띄어쓰기 구분 처리)
+        function addBulkStudents() {
+            const text = bulkInput.value.trim();
+            if (!text) return;
+
+            // 쉼표나 줄바꿈으로 분리
+            const names = text.split(/[\n,]+/).map(n => n.trim()).filter(n => n.length > 0);
+            
+            names.forEach(name => {
+                if (!students.includes(name)) {
+                    students.push(name);
+                }
+            });
+
+            bulkInput.value = '';
+            renderStudentTags();
+        }
+
+        // 추첨 기록 리셋
+        function resetPickedList() {
+            pickedStudents = [];
+            updateStats();
+            nameDisplay.textContent = "준비되셨나요?";
+            nameDisplay.classList.remove('text-yellow-200');
+        }
+
+        // 렌덤 추첨 함수
+        function pickRandomStudent() {
+            if (isPicking) return;
+            
+            const available = getAvailableStudents();
+
+            if (students.length === 0) {
+                nameDisplay.textContent = "학생 목록을 추가해 주세요!";
+                return;
+            }
+
+            if (available.length === 0) {
+                nameDisplay.textContent = "모든 학생이 뽑혔습니다!";
+                return;
+            }
+
+            isPicking = true;
+            pickBtn.disabled = true;
+            pickBtn.classList.add('opacity-50', 'cursor-not-allowed');
+
+            let counter = 0;
+            const totalRolls = 20; // 회전 효과 횟수
+            const speed = 60; // 회전 속도 (ms)
+
+            // 빠르게 이름이 바뀌는 슬롯 효과
+            const interval = setInterval(() => {
+                const randomIndex = Math.floor(Math.random() * available.length);
+                nameDisplay.textContent = available[randomIndex];
+                nameDisplay.classList.remove('pop-anim', 'text-yellow-200');
+                void nameDisplay.offsetWidth; // 리플로우 트리거
+                nameDisplay.classList.add('pop-anim');
+
+                counter++;
+                if (counter >= totalRolls) {
+                    clearInterval(interval);
+                    
+                    // 최종 당첨자 선택
+                    const finalIndex = Math.floor(Math.random() * available.length);
+                    const selectedStudent = available[finalIndex];
+                    
+                    // 당첨자 목록 기록
+                    if (excludePickedCheckbox.checked) {
+                        pickedStudents.push(selectedStudent);
+                    }
+
+                    // 당첨자 강조 연출
+                    nameDisplay.textContent = selectedStudent;
+                    nameDisplay.classList.add('text-yellow-200', 'scale-110');
+                    
+                    setTimeout(() => {
+                        nameDisplay.classList.remove('scale-110');
+                    }, 200);
+
+                    isPicking = false;
+                    pickBtn.disabled = false;
+                    pickBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    updateStats();
+                }
+            }, speed);
+        }
+
+        // 초기화 실행
+        updateStats();
+    </script>
+</body>
+</html>
